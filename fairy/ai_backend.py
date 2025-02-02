@@ -53,6 +53,9 @@ class AIBackend:
         }
 
         response = requests.post(url=self.llm_url, headers=headers, json=data)
+        if response.status_code != 200:
+            self.logger.error(f"LLM status code: {response.status_code}")
+            return history[:-1]
         response = json.loads(response.text)
         if "error_code" in response:
             self.logger.error(str(response))
