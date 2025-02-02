@@ -29,8 +29,11 @@ class FairyWindow(QMainWindow):
 
         # Quit
         self.quit_callback = quit_callback
+        self.is_quitted = False
 
         # Recording
+        self.start_record_condition = threading.Condition()
+        self.stop_record_lock = threading.Lock()
         self.device = device
         device_info = sd.query_devices(self.device, "input")
         self.samplerate = int(device_info["default_samplerate"])
@@ -52,27 +55,28 @@ class FairyWindow(QMainWindow):
                     self.start_record = True
                     self.start_record_condition.notify()
             elif event.key() == Qt.Key.Key_Q:
-                self.thread.join()
+                self.is_quitted = True
+                with self.stop_record_lock:
+                    self.stop_record = True
+                with self.start_record_condition:
+                    self.start_record = True
+                    self.start_record_condition.notify()
                 self.quit_callback()
 
     def _callback(self, indata, frames, time, status):
         self.q.put(indata.copy())
 
     def record(self, record_output_path):
-        self.start_record_condition = threading.Condition()
-        self.stop_record_lock = threading.Lock()
+        # This function must be called in non-UI thread
         self.start_record = False
         self.stop_record = False
 
-        self.thread = threading.Thread(
-            target=self._record_thread, args=(record_output_path,)
-        )
-        self.thread.start()
-
-    def _record_thread(self, record_output_path):
         with self.start_record_condition:
             while not self.start_record:
                 self.start_record_condition.wait()
+
+        if self.is_quitted:
+            return
 
         with sf.SoundFile(
             record_output_path,
@@ -90,5 +94,5 @@ class FairyWindow(QMainWindow):
                 while True:
                     with self.stop_record_lock:
                         if self.stop_record:
-                            return
+                            break
                     file.write(self.q.get())
