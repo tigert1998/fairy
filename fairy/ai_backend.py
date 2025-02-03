@@ -42,11 +42,11 @@ class AIBackend:
         }
         data = {
             "model": self.model,
-            "tools": [],
-            "tool_choice": "auto",
+            # "tools": [],
+            # "tool_choice": "none",
             "messages": [
                 {"role": "system", "content": self.system_prompt},
-                history,
+                *history,
             ],
             "stream": False,
             "temperature": 1.3,
@@ -54,7 +54,9 @@ class AIBackend:
 
         response = requests.post(url=self.llm_url, headers=headers, json=data)
         if response.status_code != 200:
-            self.logger.error(f"LLM status code: {response.status_code}")
+            self.logger.error(
+                f"LLM status code: {response.status_code}; Response: {response.text}"
+            )
             return history[:-1]
         response = json.loads(response.text)
         if "error_code" in response:
